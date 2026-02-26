@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @RestController
@@ -19,11 +20,22 @@ public class TaskController {
     private TaskRepository taskRepository;
 
     @PostMapping("/")
-    public TaskModel create(@RequestBody TaskModel taskModel, HttpServletRequest request) {
+    public ResponseEntity create(@RequestBody TaskModel taskModel, HttpServletRequest request) {
         var idUser = request.getAttribute("userId");
         taskModel.setUserId((UUID) idUser);
         var task = this.taskRepository.save(taskModel);
 
-        return task;
+        var currentDate = LocalDateTime.now();
+        if (currentDate.isAfter(task.getStartAt()) || currentDate.isAfter(task.getEndAt())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("A data de início / data de término devem ser maiores que a data atual");
+        }
+
+        if (task.getStartAt().isAfter(task.getEndAt())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("A data de início não pode maior que a data de término");
+        }
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(task);
     }
 }
