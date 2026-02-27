@@ -20,8 +20,8 @@ public class TaskController {
 
     @PostMapping("/")
     public ResponseEntity create(@RequestBody TaskModel taskModel, HttpServletRequest request) {
-        var idUser = request.getAttribute("userId");
-        taskModel.setUserId((UUID) idUser);
+        var userId = request.getAttribute("userId");
+        taskModel.setUserId((UUID) userId);
         var task = this.taskRepository.save(taskModel);
 
         var currentDate = LocalDateTime.now();
@@ -40,16 +40,29 @@ public class TaskController {
 
     @GetMapping("/")
     public List<TaskModel> list(HttpServletRequest request) {
-        var idUser = request.getAttribute("userId");
-        var tasks = this.taskRepository.findByUserId((UUID) idUser);
+        var userId = request.getAttribute("userId");
+        var tasks = this.taskRepository.findByUserId((UUID) userId);
         return tasks;
     }
 
     @PutMapping("/{id}")
-    public TaskModel update(@RequestBody TaskModel taskModel, @PathVariable UUID id, HttpServletRequest request) {
+    public ResponseEntity update(@RequestBody TaskModel taskModel, @PathVariable UUID id, HttpServletRequest request) {
         var task = this.taskRepository.findById(id).orElse(null);
-        Utils.copyNonNullProperties(taskModel, task);
 
-        return this.taskRepository.save(task);
+        if (task == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Task não encontrada");
+        }
+
+        var userId = request.getAttribute("userId");
+
+        if (!task.getUserId().equals(userId)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Usuário não tem permissão para alterar essa task");
+        }
+
+        Utils.copyNonNullProperties(taskModel, task);
+        TaskModel taskUpdated = this.taskRepository.save(task);
+        return ResponseEntity.status(HttpStatus.OK).body(taskUpdated);
     }
 }
