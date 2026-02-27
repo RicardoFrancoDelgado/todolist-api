@@ -24,8 +24,21 @@ public class FilterTaskAuth extends OncePerRequestFilter {
 
         var servletPath = request.getServletPath();
 
-        if(servletPath.startsWith("/task/")) {
+        if (servletPath.startsWith("/task/")) {
+
+            // Permite requisições OPTIONS (preflight do CORS) passarem sem autenticação
+            if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+
             var authorizationHeader = request.getHeader("Authorization");
+
+            // Retorna 401 se o header Authorization estiver ausente
+            if (authorizationHeader == null || !authorizationHeader.startsWith("Basic ")) {
+                response.sendError(401, "Authorization header ausente ou inválido");
+                return;
+            }
 
             var baseAuthorization = authorizationHeader.substring("Basic".length()).trim();
 
@@ -34,25 +47,31 @@ public class FilterTaskAuth extends OncePerRequestFilter {
             var baseDecoded = new String(baseEncoded);
 
             String[] credentials = baseDecoded.split(":");
+
+            if (credentials.length < 2) {
+                response.sendError(401, "Credenciais inválidas");
+                return;
+            }
+
             String username = credentials[0];
             String password = credentials[1];
 
             var user = this.userRepository.findByUsername(username);
+
             if (user == null) {
-                response.sendError(401);
+                response.sendError(401, "Usuário não encontrado");
             } else {
                 var passwordVerify = BCrypt.verifyer().verify(password.toCharArray(), user.getPassword());
                 if (passwordVerify.verified) {
                     request.setAttribute("userId", user.getId());
                     filterChain.doFilter(request, response);
                 } else {
-                    response.sendError(401);
+                    response.sendError(401, "Senha incorreta");
                 }
-
             }
+
         } else {
             filterChain.doFilter(request, response);
         }
-
     }
 }
